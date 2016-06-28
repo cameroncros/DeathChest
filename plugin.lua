@@ -1,14 +1,16 @@
 PLUGIN = nil
 
+ChestArray = {}
+NumChests = 0
+
 function Initialize(Plugin)
 	Plugin:SetName("DeathChest")
-	Plugin:SetVersion(1)
+	Plugin:SetVersion(1.1)
 
 	-- Hooks
 
-	PLUGIN = Plugin -- NOTE: only needed if you want OnDisable() to use GetName() or something like that
 	cPluginManager:AddHook(cPluginManager.HOOK_KILLING, MyOnKilled);
-	--cPluginManager:AddHook(cPluginManager.HOOK_PLAYER_USED_BLOCK, CleanDeathChests);
+	cPluginManager:AddHook(cPluginManager.HOOK_PLAYER_USED_BLOCK, CleanDeathChests);
 	-- Command Bindings
 
 	LOG("Initialised " .. Plugin:GetName() .. " v." .. Plugin:GetVersion())
@@ -16,51 +18,88 @@ function Initialize(Plugin)
 end
 
 function OnDisable()
-	LOG(PLUGIN:GetName() .. " is shutting down...")
-end
+	-- TODO Save chests to file
+	--
 
+end
 
 function MyOnKilled(Victim, TDI, DeathMessage)
- 	if not Victim:IsPlayer() then
-		return false
-	end
+        if not Victim:IsPlayer() then
+                return false
+        end
+        newChest = DeathChest:new(Victim:GetPosition(), Victim:GetName(), 0)
+        newChest:PlaceChest(Victim)
+        NumChests = NumChests+1
+        ChestArray[NumChests]=newChest
 	
-	World=Victim:GetWorld()
-	Position=Victim:GetPosition()
- 	World:SetBlock(Position.x-1, Position.y, Position.z, 54, 4)
-	World:SetBlock(Position.x-1, Position.y, Position.z+1, 54, 4)
-	--World:SetBlock(Position.x, Position.y, Position.z, 68, 2)
-	--World:SetBlock(Position.x, Position.y, Position.z+1, 68, 2)
+	newChest2 = DeathChest:new(Victim:GetPosition(), Victim:GetName(), 1)
+        newChest2:PlaceChest(Victim)
+        NumChests = NumChests+1
+        ChestArray[NumChests]=newChest2
 
-	--World:SetSignLines(Position.x, Position.y, Position.z, "Death Chest", Victim:GetName(), "", "")
-	--World:SetSignLines(Position.x, Position.y, Position.z+1, "Death Chest", Victim:GetName(), "", "")
-
-	EmptyItem = new cItem();
-	World:DoWithChestAt(Position.x-1, Position.y, Position.z, 
-		function (ChestEntity)
-			Inventory=Victim:GetInventory()
-			for i=1,Min(27,Inventory.invNumSlots)-1 do
-				Item=Inventory:GetSlot(i)
-				ChestEntity:SetSlot(i, Item)
-			end
-
-
-		        World:DoWithChestAt(Position.x-1, Position.y, Position.z+1,
-                		function (ChestEntity)
-                        		Inventory=Victim:GetInventory()
-                        		for i=1,Min(27,Inventory.invNumSlots-27)-1 do
-                                		Item=Inventory:GetSlot(i+27)
-                                		ChestEntity:SetSlot(i, Item)
 	
-                        		end
-				Inventory:Clear()
-                		end
-        		)
-		end
-	)
 
-        return true, "A death chest might have been created"
+
+        return newChest:isPlaced() and newChest2:isPlaced(), "A death chest might have been created"
 end
+
+function CleanDeathChests()
+	for id=1,NumChests do
+		if ChestArray[id]:isClean() then
+			ChestArray[id]:destroyChest()
+		end
+	end
+end
+
+
+
+DeathChest = {x = 0, y = 0, z = 0, user = "", chestNum = 0, placed = false}
+
+function DeathChest:new(Position, PlayerName, ChestNum)
+	o = o or {}
+	setmetatable(o, self)
+	self.__x = math.floor(Position.x)
+	self.__y = math.floor(Position.y)+ChestNum
+	self.__z = math.floor(Position.z)
+	self.__user = PlayerName
+	self.__chestNum = ChestNum
+	return self
+end
+
+function DeathChest:PlaceChest(Player)
+	World=Player:GetWorld()
+        World:SetBlock(self.__x+1, self.__y, self.__z, E_BLOCK_CHEST, E_META_CHEST_FACING_XM)
+        World:SetBlock(self.__x, self.__y, self.__z, E_BLOCK_WALLSIGN, E_META_CHEST_FACING_XM)
+
+        World:SetSignLines(self.__x, self.__y, self.__z, "~~~~~", "Death Chest", self.__user, "~~~~~")
+
+        World:DoWithChestAt(self.__x+1, self.__y, self.__z, 
+                function (ChestEntity)
+                        Inventory=Player:GetInventory()
+                        for i=1,Min(27,Inventory.invNumSlots-self.__chestNum*27)-1 do
+                                Item=Inventory:GetSlot(i+self.__chestNum*27)
+                                ChestEntity:SetSlot(i, Item)
+                        end
+			self.__placed = true
+                end
+        )
+	return true;
+end
+
+function DeathChest:isClean()
+
+	return false
+end
+
+function DeathChest:isPlaced()
+	return self.__placed
+end
+
+function DeathChest:destroyChest()
+	World:SetBlock(self.__x-1, self.__y, self.__z, E_BLOCK_AIR, 0)
+	World:SetBlock(self.__x, self.__y, self.__z, E_BLOCK_AIR, 0)	
+end
+
 
 function Min(x,y) 
 	if x>y then

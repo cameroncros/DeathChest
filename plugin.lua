@@ -37,10 +37,12 @@ function MyOnKilled(Victim, TDI, DeathMessage)
         NumChests = NumChests+1
         ChestArray[NumChests]=newChest2
 
-	
-
-
-        return newChest:isPlaced() and newChest2:isPlaced(), "A death chest might have been created"
+	if newChest:isPlaced() and newChest2:isPlaced() then
+		Victim:GetInventory():Clear()
+		return true, "A death chest was created"
+	else
+		return true, "A death chest was not created"
+	end
 end
 
 function CleanDeathChests()
